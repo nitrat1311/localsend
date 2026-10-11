@@ -78,7 +78,7 @@ String selectWifiAddressForPeer(List<WifiIpv4Interface> interfaces, String peer)
   for (final network in interfaces) {
     if (network.containsPeer(peer)) return network.address;
   }
-  throw StateError('The iPhone address is not on an active Wi-Fi subnet. Connect both devices to the same Wi-Fi and check its IP address.');
+  throw StateError('The phone address is not on an active Wi-Fi subnet. Connect both devices to the same Wi-Fi and check its IP address.');
 }
 
 Future<String> resolveWifiAddressForPeer(String peer) async => selectWifiAddressForPeer(await getWindowsWifiInterfaces(), peer);

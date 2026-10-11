@@ -83,8 +83,8 @@ class _WifiSendPageState extends State<WifiSendPage> {
         deviceModel: deviceInfo.deviceModel,
         deviceType: deviceInfo.deviceType,
         fingerprint: security.certificateHash,
-        // No PC receiver is available; don't advertise a callback listener.
-        port: null,
+        // Required protocol metadata; outgoing mode never starts a PC listener.
+        port: defaultPort,
         protocol: ProtocolType.https,
         download: false,
       ),
@@ -112,9 +112,9 @@ class _WifiSendPageState extends State<WifiSendPage> {
       setState(() {
         _progress = 1;
         _status = result.sentFiles == 0
-            ? 'The iPhone accepted the message or selected no files for download.'
+            ? 'The phone accepted the message or selected no files for download.'
             : 'Sent ${result.sentFiles} file(s) to ${result.receiverAlias}.';
-        if (result.skippedFiles > 0 && result.sentFiles > 0) _status += ' ${result.skippedFiles} file(s) were not selected on the iPhone.';
+        if (result.skippedFiles > 0 && result.sentFiles > 0) _status += ' ${result.skippedFiles} file(s) were not selected on the phone.';
       });
     } catch (error) {
       if (!mounted) return;
@@ -122,10 +122,11 @@ class _WifiSendPageState extends State<WifiSendPage> {
         _failed = true;
         _progress = null;
         _status = switch (error) {
-          WifiTransferCancelled() => 'Transfer canceled. Dismiss any pending offer on the iPhone before retrying.',
+          WifiTransferCancelled() => 'Transfer canceled. Dismiss any pending offer on the phone before retrying.',
           WifiTransferException() => error.message,
-          TimeoutException() => 'The iPhone did not respond in time. Keep LocalSend open and accept the offer. Check its address and port.',
-          _ => 'Could not send: $error\nKeep LocalSend open on the iPhone, allow Local Network access, and check the address and encryption setting.',
+          TimeoutException() => 'The phone did not respond in time. Keep LocalSend open and accept the offer. Check its address and port.',
+          _ =>
+            'Could not send: $error\nKeep LocalSend open on the phone, allow local network access if requested, and check the address and encryption setting.',
         };
       });
     } finally {
@@ -139,7 +140,7 @@ class _WifiSendPageState extends State<WifiSendPage> {
     return PopScope(
       canPop: !_busy,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Send to iPhone')),
+        appBar: AppBar(title: const Text('Send to phone')),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 620),
@@ -147,10 +148,10 @@ class _WifiSendPageState extends State<WifiSendPage> {
               padding: const EdgeInsets.all(24),
               children: [
                 const Text(
-                  '1. Open LocalSend on your iPhone and allow Local Network access. Keep the app open and the screen awake.\n'
-                  '2. Connect the iPhone and PC to the same Wi-Fi.\n'
-                  '3. On iPhone: Settings → Wi-Fi → ⓘ next to your network → IP Address. Enter that address below.\n'
-                  '4. Click Send, then tap Accept in LocalSend on the iPhone.',
+                  '1. Open LocalSend on your phone and allow local network access if requested. Keep the app open and the screen awake.\n'
+                  '2. Connect the phone and PC to the same Wi-Fi.\n'
+                  '3. Find the phone IP in Wi-Fi network details (Android), or Settings → Wi-Fi → ⓘ (iPhone). Enter it below.\n'
+                  '4. Click Send, then tap Accept in LocalSend on the phone.',
                 ),
                 const SizedBox(height: 20),
                 Text('${widget.files.length} selected file(s) • ${widget.files.fold<int>(0, (sum, file) => sum + file.size).asReadableFileSize}'),
@@ -162,7 +163,7 @@ class _WifiSendPageState extends State<WifiSendPage> {
                       TextFormField(
                         controller: _ip,
                         enabled: !_busy,
-                        decoration: const InputDecoration(labelText: 'iPhone Wi-Fi IP address', hintText: '192.168.1.25'),
+                        decoration: const InputDecoration(labelText: 'phone Wi-Fi IP address', hintText: '192.168.1.25'),
                         validator: (value) => isUsableWifiAddress(value?.trim() ?? '') ? null : 'Enter a Wi-Fi IPv4 address, such as 192.168.1.25.',
                       ),
                       const SizedBox(height: 16),
@@ -173,12 +174,12 @@ class _WifiSendPageState extends State<WifiSendPage> {
                             controller: _pin,
                             enabled: !_busy,
                             obscureText: true,
-                            decoration: const InputDecoration(labelText: 'iPhone receive PIN (only if configured)'),
+                            decoration: const InputDecoration(labelText: 'phone receive PIN (only if configured)'),
                           ),
                           TextFormField(
                             controller: _port,
                             enabled: !_busy,
-                            decoration: const InputDecoration(labelText: 'iPhone LocalSend port'),
+                            decoration: const InputDecoration(labelText: 'phone LocalSend port'),
                             validator: (value) {
                               final port = int.tryParse(value?.trim() ?? '');
                               return port != null && port >= 1 && port <= 65535 ? null : 'Enter a port from 1 to 65535.';
@@ -186,7 +187,7 @@ class _WifiSendPageState extends State<WifiSendPage> {
                           ),
                           SwitchListTile(
                             title: const Text('HTTPS encryption'),
-                            subtitle: const Text('Match the Encryption setting in LocalSend on the iPhone.'),
+                            subtitle: const Text('Match the Encryption setting in LocalSend on the phone.'),
                             value: _https,
                             onChanged: _busy ? null : (value) => setState(() => _https = value),
                           ),
@@ -205,7 +206,7 @@ class _WifiSendPageState extends State<WifiSendPage> {
                 if (_busy)
                   OutlinedButton(onPressed: () => _sender?.cancel(), child: const Text('Cancel'))
                 else
-                  FilledButton.icon(onPressed: _send, icon: const Icon(Icons.send), label: const Text('Send to iPhone')),
+                  FilledButton.icon(onPressed: _send, icon: const Icon(Icons.send), label: const Text('Send to phone')),
                 const SizedBox(height: 16),
                 const Text('Keep Windows Firewall enabled. This mode needs no administrator rights or incoming firewall exception.'),
               ],

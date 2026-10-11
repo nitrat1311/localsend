@@ -170,13 +170,13 @@ class SendTab extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: vm.selectedFiles.isEmpty ? null : () async => context.push(() => WifiSendPage(List.unmodifiable(vm.selectedFiles))),
                   icon: const Icon(Icons.phone_iphone),
-                  label: const Text('Send to iPhone'),
+                  label: const Text('Send to phone'),
                 ),
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: _horizontalPadding),
                 child: Text(
-                    'Select files, then send to the LocalSend app on your iPhone. Keep Windows Firewall enabled; no administrator rights needed.'),
+                    'Select files, then send to the LocalSend app on your phone. Keep Windows Firewall enabled; no administrator rights needed.'),
               ),
             ] else if (linkOnlyMode) ...[
               Padding(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:common/constants.dart';
 import 'package:common/model/device.dart';
 import 'package:common/model/dto/file_dto.dart';
 import 'package:common/model/dto/info_register_dto.dart';
@@ -59,11 +60,27 @@ Future<HttpServer> _receiver(Future<void> Function(HttpRequest) handler, {bool t
 }
 
 Future<void> _info(HttpRequest request) => _reply(request, 200, {
-      'alias': 'Test iPhone',
-      'version': '2.1',
+      'alias': 'Test phone',
+      'version': '2.2',
       'deviceType': 'mobile',
       'fingerprint': _security.certificateHash,
     });
+
+// Required RegisterDtoV2 fields used by LocalSend v1.18.2's prepare-upload
+// parser. In particular, serde rejects null for the required u16 port:
+// https://github.com/localsend/localsend/blob/v1.18.2/packages/core/src/http/dto_v2.rs
+bool _accepts1182SenderInfo(Object? value) {
+  if (value is! Map<String, dynamic>) return false;
+  final port = value['port'];
+  return value['alias'] is String &&
+      value['version'] is String &&
+      value['fingerprint'] is String &&
+      port is int &&
+      port >= 0 &&
+      port <= 65535 &&
+      ['http', 'https'].contains(value['protocol']) &&
+      (!value.containsKey('download') || value['download'] is bool);
+}
 
 WifiDirectSender _sender(HttpServer server, {bool tls = false, Future<String> Function(String)? source}) => WifiDirectSender(
       phoneIp: '127.0.0.1',
@@ -113,6 +130,11 @@ void main() {
           case 'prepare-upload':
             expect(request.uri.queryParameters['pin'], '1234');
             final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map<String, dynamic>;
+            if (!_accepts1182SenderInfo(body['info'])) {
+              await _reply(request, 400, {'message': 'Invalid JSON body'});
+              return;
+            }
+            expect(body['info']['port'], defaultPort);
             expect(body['info']['alias'], 'PC Wi-Fi Sender');
             expect(body['info']['download'], false);
             final files = body['files'] as Map<String, dynamic>;
@@ -149,11 +171,50 @@ void main() {
       expect(received, expected);
       expect(result.sentFiles, 3);
       expect(result.skippedFiles, 0);
-      expect(result.receiverAlias, 'Test iPhone');
+      expect(result.receiverAlias, 'Test phone');
       expect(progress.last, 200004);
       expect(routes, ['/api/localsend/v2/info', '/api/localsend/v2/prepare-upload', ...List.filled(3, '/api/localsend/v2/upload')]);
     });
   }
+
+  test('LocalSend 1.18.2 receiver rejects the previous null-port offer before acceptance', () async {
+    bool accepted = false;
+    final server = await _receiver((request) async {
+      final body = jsonDecode(await utf8.decoder.bind(request).join());
+      if (!_accepts1182SenderInfo(body['info'])) {
+        await _reply(request, 400, {'message': 'Invalid JSON body'});
+        return;
+      }
+      accepted = true;
+      await _reply(request, 204);
+    });
+    final client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    final request = await client.postUrl(Uri.parse('http://127.0.0.1:${server.port}/api/localsend/v2/prepare-upload'));
+    request.headers.contentType = ContentType.json;
+    request.write(jsonEncode({'info': _sender(server).senderInfo.toJson(), 'files': <String, Object>{}}));
+    final response = await request.close();
+    expect(response.statusCode, 400);
+    expect(await utf8.decoder.bind(response).join(), contains('Invalid JSON body'));
+    expect(accepted, false);
+  });
+
+  test('Reports the request stage when the receiver returns HTTP 400', () async {
+    final server = await _receiver((request) async {
+      if (request.uri.path.endsWith('/info')) {
+        await _info(request);
+      } else {
+        await request.drain<void>();
+        await _reply(request, 400, {'message': 'Invalid JSON body'});
+      }
+    });
+    await expectLater(
+      _sender(server).send(files: [
+        _file('one', [1])
+      ], onStatus: (_) {}, onProgress: (_, __) {}),
+      throwsA(isA<WifiTransferException>().having((error) => error.message, 'message', contains('HTTP 400 during transfer offer (prepare-upload)'))),
+    );
+  });
 
   test('Uploads only selected files and reports skipped files', () async {
     int uploads = 0;

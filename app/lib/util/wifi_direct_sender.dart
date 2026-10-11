@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:common/constants.dart';
 import 'package:common/model/dto/file_dto.dart';
 import 'package:common/model/dto/info_dto.dart';
 import 'package:common/model/dto/info_register_dto.dart';
@@ -82,7 +83,7 @@ class WifiDirectSender {
   Future<void> _ensureWifi() async {
     final current = await resolveSourceAddress(phoneIp);
     if (_sourceAddress != null && current != _sourceAddress) {
-      throw const WifiTransferException('The Wi-Fi connection changed. Check the iPhone address and start a new transfer.');
+      throw const WifiTransferException('The Wi-Fi connection changed. Check the phone address and start a new transfer.');
     }
     _sourceAddress = current;
   }
@@ -163,14 +164,14 @@ class WifiDirectSender {
     return (response.statusCode, utf8.decode(builder.takeBytes()));
   }
 
-  void _requireSuccess(int status) {
+  void _requireSuccess(int status, String stage) {
     if (status >= 200 && status < 300) return;
     final message = switch (status) {
-      401 => 'The iPhone requires a PIN, or the PIN is incorrect. Enter its receive PIN and retry.',
-      403 => 'The iPhone declined the transfer or canceled receiving.',
-      409 => 'The iPhone is busy. Close its previous transfer and retry.',
+      401 => 'The phone requires a PIN, or the PIN is incorrect. Enter its receive PIN and retry.',
+      403 => 'The phone declined the transfer or canceled receiving.',
+      409 => 'The phone is busy. Close its previous transfer and retry.',
       429 => 'Too many PIN attempts. Wait before trying again.',
-      _ => 'The iPhone returned HTTP $status. Check LocalSend on the iPhone.',
+      _ => 'The phone returned HTTP $status during $stage. Check LocalSend on the phone.',
     };
     throw WifiTransferException(message);
   }
@@ -187,7 +188,7 @@ class WifiDirectSender {
       _checkCanceled();
       final address = InternetAddress.tryParse(phoneIp);
       if (address == null || address.type != InternetAddressType.IPv4 || port < 1 || port > 65535) {
-        throw const WifiTransferException('Enter the iPhone Wi-Fi IPv4 address and a port from 1 to 65535.');
+        throw const WifiTransferException('Enter the phone Wi-Fi IPv4 address and a port from 1 to 65535.');
       }
       if (files.isEmpty) throw const WifiTransferException('Select at least one file.');
       for (final file in files) {
@@ -201,13 +202,13 @@ class WifiDirectSender {
       }
       await _guard(_ensureWifi());
       _client = _createClient();
-      onStatus('Connecting to the iPhone…');
+      onStatus('Connecting to the phone…');
       final infoRequest = await _request('GET', _uri('info'));
       final (infoStatus, infoBody) = await _response(infoRequest);
-      _requireSuccess(infoStatus);
+      _requireSuccess(infoStatus, 'receiver information');
       final info = InfoDto.fromJson(jsonDecode(infoBody));
       if (info.version == null || !info.version!.startsWith('2.')) {
-        throw const WifiTransferException('Update LocalSend on the iPhone. This sender requires protocol v2.');
+        throw const WifiTransferException('Update LocalSend on the phone. This sender requires protocol v2.');
       }
       final selected = {for (final file in files) const Uuid().v4(): file};
       final metadata = {
@@ -223,14 +224,19 @@ class WifiDirectSender {
             metadata: FileMetadata(lastModified: entry.value.lastModified, lastAccessed: entry.value.lastAccessed),
           ),
       };
-      onStatus('Waiting for ${info.alias}: tap Accept in LocalSend on the iPhone.');
+      onStatus('Waiting for ${info.alias}: tap Accept in LocalSend on the phone.');
       final offer = await _request('POST', _uri('prepare-upload', {if (pin != null && pin.isNotEmpty) 'pin': pin}));
       offer.headers.contentType = ContentType.json;
-      offer.write(jsonEncode(PrepareUploadRequestDto(info: senderInfo, files: metadata).toJson()));
+      // LocalSend 1.18.2 requires a numeric port in RegisterDtoV2, including
+      // prepare-upload. This is metadata only; no PC listener is started.
+      final compatibleInfo = senderInfo.copyWith(port: senderInfo.port ?? defaultPort);
+      final offerBytes = utf8.encode(jsonEncode(PrepareUploadRequestDto(info: compatibleInfo, files: metadata).toJson()));
+      offer.contentLength = offerBytes.length;
+      offer.add(offerBytes);
       _offerPending = true;
       final (offerStatus, offerBody) = await _response(offer);
       _offerPending = false;
-      _requireSuccess(offerStatus);
+      _requireSuccess(offerStatus, 'transfer offer (prepare-upload)');
       if (offerStatus == 204) return WifiTransferResult(info.alias, 0, files.length);
       final accepted = PrepareUploadResponseDto.fromJson(jsonDecode(offerBody));
       _sessionId = accepted.sessionId;
@@ -257,7 +263,7 @@ class WifiDirectSender {
         })));
         onStatus('Waiting for ${info.alias} to confirm ${file.name}…');
         final (status, _) = await _response(upload);
-        _requireSuccess(status);
+        _requireSuccess(status, 'file upload');
         completed++;
       }
       return WifiTransferResult(info.alias, completed, files.length - completed);
