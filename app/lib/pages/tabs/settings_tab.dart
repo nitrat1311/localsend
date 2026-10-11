@@ -3,6 +3,7 @@ import 'package:common/constants.dart';
 import 'package:common/model/device.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/config/theme.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/persistence/color_mode.dart';
@@ -278,46 +279,47 @@ class SettingsTab extends StatelessWidget {
                     child: Text(t.settingsTab.network.needRestart, style: TextStyle(color: Theme.of(context).colorScheme.warning)),
                   ),
                 ),
-                _SettingsEntry(
-                  label: '${t.settingsTab.network.server}${vm.serverState == null ? ' (${t.general.offline})' : ''}',
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).inputDecorationTheme.fillColor,
-                      borderRadius: Theme.of(context).inputDecorationTheme.borderRadius,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        if (vm.serverState == null)
+                if (!outgoingOnlyMode)
+                  _SettingsEntry(
+                    label: '${t.settingsTab.network.server}${vm.serverState == null ? ' (${t.general.offline})' : ''}',
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).inputDecorationTheme.fillColor,
+                        borderRadius: Theme.of(context).inputDecorationTheme.borderRadius,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          if (vm.serverState == null)
+                            Tooltip(
+                              message: t.general.start,
+                              child: TextButton(
+                                style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.onSurface),
+                                onPressed: () => vm.onTapStartServer(context),
+                                child: const Icon(Icons.play_arrow),
+                              ),
+                            )
+                          else
+                            Tooltip(
+                              message: t.general.restart,
+                              child: TextButton(
+                                style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.onSurface),
+                                onPressed: () => vm.onTapRestartServer(context),
+                                child: const Icon(Icons.refresh),
+                              ),
+                            ),
                           Tooltip(
-                            message: t.general.start,
+                            message: t.general.stop,
                             child: TextButton(
                               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.onSurface),
-                              onPressed: () => vm.onTapStartServer(context),
-                              child: const Icon(Icons.play_arrow),
-                            ),
-                          )
-                        else
-                          Tooltip(
-                            message: t.general.restart,
-                            child: TextButton(
-                              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.onSurface),
-                              onPressed: () => vm.onTapRestartServer(context),
-                              child: const Icon(Icons.refresh),
+                              onPressed: vm.serverState == null ? null : vm.onTapStopServer,
+                              child: const Icon(Icons.stop),
                             ),
                           ),
-                        Tooltip(
-                          message: t.general.stop,
-                          child: TextButton(
-                            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.onSurface),
-                            onPressed: vm.serverState == null ? null : vm.onTapStopServer,
-                            child: const Icon(Icons.stop),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 _SettingsEntry(
                   label: t.settingsTab.network.alias,
                   child: TextFieldWithActions(

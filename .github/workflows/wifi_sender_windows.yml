@@ -1,0 +1,60 @@
+name: Windows outgoing Wi-Fi sender
+
+on:
+  push:
+    branches: [codex/wifi-outgoing-iphone-1.16.1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable long paths
+        run: git config --system core.longpaths true
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.4'
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: app
+        run: flutter pub get
+      - name: Analyze
+        working-directory: app
+        run: flutter analyze
+      - name: Test standard edition
+        working-directory: app
+        run: flutter test
+      - name: Test link-only edition
+        working-directory: app
+        run: flutter test --dart-define=LOCALSEND_LINK_ONLY=true
+      - name: Test outgoing edition
+        working-directory: app
+        run: flutter test --dart-define=LOCALSEND_OUTGOING_ONLY=true
+      - name: Test common library
+        working-directory: common
+        run: dart test
+      - name: Compile Windows x64
+        working-directory: app
+        run: flutter build windows --release --dart-define=LOCALSEND_OUTGOING_ONLY=true
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          $output = 'app/build/windows/x64/runner/Release'
+          Set-Content -Path "$output/settings.json" -Value '{}' -Encoding utf8
+          Copy-Item scripts/windows/x64/*.dll $output
+          Copy-Item LICENSE "$output/LICENSE.txt"
+          Copy-Item docs/WIFI_SENDER_WINDOWS.md "$output/START-HERE.txt"
+          Compress-Archive -Path "$output/*" -DestinationPath LocalSend-1.16.1-WiFiSender-r2-Windows-x64.zip
+          Get-FileHash LocalSend-1.16.1-WiFiSender-r2-Windows-x64.zip -Algorithm SHA256 | Format-List
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalSend-1.16.1-WiFiSender-r2-Windows-x64
+          path: LocalSend-1.16.1-WiFiSender-r2-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30

@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <vector>
 
-flutter::EncodableList GetWifiIpv4Addresses() {
+flutter::EncodableList GetWifiIpv4Addresses(bool include_prefix) {
   ULONG size = 16384;
   std::vector<unsigned char> buffer(size);
   ULONG status = ERROR_BUFFER_OVERFLOW;
@@ -39,7 +39,14 @@ flutter::EncodableList GetWifiIpv4Addresses() {
       char text[INET_ADDRSTRLEN] = {};
       if (InetNtopA(AF_INET, const_cast<IN_ADDR*>(&addr->sin_addr), text,
                     sizeof(text)) != nullptr) {
-        addresses.emplace_back(std::string(text));
+        if (include_prefix) {
+          addresses.emplace_back(flutter::EncodableMap{
+              {flutter::EncodableValue("address"), flutter::EncodableValue(std::string(text))},
+              {flutter::EncodableValue("prefixLength"),
+               flutter::EncodableValue(static_cast<int>(unicast->OnLinkPrefixLength))}});
+        } else {
+          addresses.emplace_back(std::string(text));
+        }
       }
     }
   }

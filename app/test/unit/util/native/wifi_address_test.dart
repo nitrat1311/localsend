@@ -53,5 +53,44 @@ void main() {
       expect(service.state, isNull);
       expect(service.notifier.boundAddress, isNull);
     }
-  }, skip: !linkOnlyMode);
+  }, skip: !linkOnlyMode || outgoingOnlyMode);
+
+  test('Outgoing edition cannot start a PC server, even through a manual action', () async {
+    final service = Notifier.test(notifier: ServerService());
+    for (final encrypted in [false, true]) {
+      expect(await service.notifier.startServer(alias: 'Test', port: 53317, https: encrypted), isNull);
+      expect(service.state, isNull);
+      expect(service.notifier.boundAddress, isNull);
+    }
+  }, skip: !outgoingOnlyMode);
+
+  test('Selects only a matching Wi-Fi subnet using the actual prefix', () {
+    const interfaces = [WifiIpv4Interface('10.10.0.2', 16), WifiIpv4Interface('192.168.50.5', 24)];
+    expect(selectWifiAddressForPeer(interfaces, '10.10.40.20'), '10.10.0.2');
+    expect(selectWifiAddressForPeer(interfaces.reversed.toList(), '10.10.40.20'), '10.10.0.2');
+    expect(selectWifiAddressForPeer(interfaces, '192.168.50.9'), '192.168.50.5');
+    for (final peer in ['192.168.51.9', '192.168.50.0', '192.168.50.255', '192.168.50.5', '127.0.0.1', '::1', 'bad']) {
+      expect(() => selectWifiAddressForPeer(interfaces, peer), throwsStateError);
+    }
+    expect(() => selectWifiAddressForPeer([], '192.168.50.9'), throwsStateError);
+    expect(() => selectWifiAddressForPeer([const WifiIpv4Interface('192.168.50.5', 0)], '192.168.50.9'), throwsStateError);
+  });
+
+  test('Loads native Wi-Fi prefixes and fails closed if missing', () async {
+    expect(await getWindowsWifiInterfaces(), isEmpty);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(wifiAddressChannel, (call) async {
+      expect(call.method, 'getWifiIpv4Interfaces');
+      return [
+        {'address': '192.168.50.5', 'prefixLength': 24},
+        {'address': '127.0.0.1', 'prefixLength': 8},
+        {'address': '10.0.0.1', 'prefixLength': 0},
+        {'address': '10.0.0.2', 'prefixLength': 999},
+        {'address': '10.0.0.3'},
+      ];
+    });
+    final interfaces = await getWindowsWifiInterfaces();
+    expect(interfaces, hasLength(1));
+    expect(interfaces.single.address, '192.168.50.5');
+    expect(interfaces.single.prefixLength, 24);
+  });
 }

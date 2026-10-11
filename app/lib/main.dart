@@ -65,7 +65,7 @@ class LocalSendApp extends StatelessWidget {
           },
           child: ShortcutWatcher(
             child: MaterialApp(
-              title: linkOnlyMode ? 'LocalSend Link-Only' : t.appName,
+              title: linkOnlyMode ? customEditionName : t.appName,
               locale: TranslationProvider.of(context).flutterLocale,
               supportedLocales: AppLocaleUtils.supportedLocales,
               localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -76,7 +76,7 @@ class LocalSendApp extends StatelessWidget {
               navigatorKey: Routerino.navigatorKey,
               home: RouterinoHome(
                 builder: () => const HomePage(
-                  initialTab: HomeTab.receive,
+                  initialTab: outgoingOnlyMode ? HomeTab.send : HomeTab.receive,
                   appStart: true,
                 ),
               ),
