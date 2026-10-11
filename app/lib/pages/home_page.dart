@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:localsend_app/config/init.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/config/theme.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/pages/home_page_controller.dart';
@@ -110,7 +111,7 @@ class _HomePageState extends State<HomePage> with Refena {
                             children: [
                               SizedBox(height: 20),
                               Text(
-                                'LocalSend',
+                                linkOnlyMode ? 'LocalSend Link-Only' : 'LocalSend',
                                 style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                                 textAlign: TextAlign.center,
                               ),

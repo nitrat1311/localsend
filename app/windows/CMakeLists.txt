@@ -56,6 +56,11 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# gal 2.3.0 uses C++/WinRT but does not declare its Windows Runtime library.
+# New Windows SDK headers require this explicit linkage.
+if(TARGET gal_plugin)
+  target_link_libraries(gal_plugin PRIVATE windowsapp)
+endif()
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can

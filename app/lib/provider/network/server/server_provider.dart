@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:common/constants.dart';
 import 'package:common/isolate.dart';
 import 'package:common/model/dto/multicast_dto.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/model/cross_file.dart';
 import 'package:localsend_app/model/state/server/server_state.dart';
 import 'package:localsend_app/provider/network/server/controller/receive_controller.dart';
@@ -12,6 +13,7 @@ import 'package:localsend_app/provider/network/server/server_utils.dart';
 import 'package:localsend_app/provider/security_provider.dart';
 import 'package:localsend_app/provider/settings_provider.dart';
 import 'package:localsend_app/util/alias_generator.dart';
+import 'package:localsend_app/util/native/wifi_address.dart';
 import 'package:localsend_app/util/simple_server.dart';
 import 'package:logging/logging.dart';
 import 'package:refena_flutter/refena_flutter.dart';
@@ -60,6 +62,8 @@ class ServerService extends Notifier<ServerState?> {
   late final _receiveController = ReceiveController(_serverUtils);
   late final _sendController = SendController(_serverUtils);
 
+  String? boundAddress;
+
   ServerService();
 
   @override
@@ -69,6 +73,7 @@ class ServerService extends Notifier<ServerState?> {
 
   /// Starts the server from user settings.
   Future<ServerState?> startServerFromSettings() async {
+    if (linkOnlyMode) return null;
     final settings = ref.read(settingsProvider);
     return startServer(
       alias: settings.alias,
@@ -97,16 +102,19 @@ class ServerService extends Notifier<ServerState?> {
       port = defaultPort;
     }
 
+    final address = linkOnlyMode ? requireWifiAddress(await getWindowsWifiAddresses()) : '0.0.0.0';
     final router = SimpleServerRouteBuilder();
     final fingerprint = ref.read(securityProvider).certificateHash;
-    _receiveController.installRoutes(
-      router: router,
-      alias: alias,
-      port: port,
-      https: https,
-      fingerprint: fingerprint,
-      showToken: ref.read(settingsProvider).showToken,
-    );
+    if (!linkOnlyMode) {
+      _receiveController.installRoutes(
+        router: router,
+        alias: alias,
+        port: port,
+        https: https,
+        fingerprint: fingerprint,
+        showToken: ref.read(settingsProvider).showToken,
+      );
+    }
     _sendController.installRoutes(
       router: router,
       alias: alias,
@@ -119,7 +127,7 @@ class ServerService extends Notifier<ServerState?> {
     if (https) {
       final securityContext = ref.read(securityProvider);
       httpServer = await HttpServer.bindSecure(
-        '0.0.0.0',
+        address,
         port,
         SecurityContext()
           ..usePrivateKeyBytes(securityContext.privateKey.codeUnits)
@@ -128,7 +136,7 @@ class ServerService extends Notifier<ServerState?> {
       _logger.info('Server started. (Port: $port, HTTPS only)');
     } else {
       httpServer = await HttpServer.bind(
-        '0.0.0.0',
+        address,
         port,
       );
       _logger.info('Server started. (Port: $port, HTTP only)');
@@ -146,6 +154,7 @@ class ServerService extends Notifier<ServerState?> {
       pinAttempts: {},
     );
 
+    boundAddress = address;
     state = newServerState;
     return newServerState;
   }
@@ -153,6 +162,7 @@ class ServerService extends Notifier<ServerState?> {
   Future<void> stopServer() async {
     _logger.info('Stopping server...');
     await state?.httpServer.close();
+    boundAddress = null;
     state = null;
     _logger.info('Server stopped.');
   }

@@ -1,6 +1,7 @@
 import 'package:common/util/sleep.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/config/theme.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/cross_file.dart';
@@ -75,7 +76,11 @@ class _WebSendPageState extends State<WebSendPage> with Refena {
 
   /// Web share uses unencrypted http, so we need to revert to the previous state.
   Future<void> _revertServerState() async {
-    await ref.notifier(serverProvider).restartServerFromSettings();
+    if (linkOnlyMode) {
+      await ref.notifier(serverProvider).stopServer();
+    } else {
+      await ref.notifier(serverProvider).restartServerFromSettings();
+    }
   }
 
   @override
@@ -125,19 +130,32 @@ class _WebSendPageState extends State<WebSendPage> with Refena {
                     Center(
                       child: SelectableText(_initializedError!, style: Theme.of(context).textTheme.bodyMedium),
                     ),
+                    TextButton(onPressed: () => _init(encrypted: _encrypted), child: const Text('Retry')),
                   ],
                 ],
               );
             }
 
-            final serverState = context.watch(serverProvider)!;
+            final serverState = context.watch(serverProvider);
+            if (serverState == null || serverState.webSendState == null) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Wi-Fi changed or sharing stopped. Reconnect to Wi-Fi and retry.'),
+                    TextButton(onPressed: () => _init(encrypted: _encrypted), child: const Text('Retry')),
+                  ],
+                ),
+              );
+            }
             final webSendState = serverState.webSendState!;
             final networkState = context.watch(localIpProvider);
+            final addresses = linkOnlyMode ? [ref.notifier(serverProvider).boundAddress!] : networkState.localIps;
 
             return ResponsiveListView(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 20),
               children: [
-                Text(t.webSharePage.openLink(n: networkState.localIps.length), style: Theme.of(context).textTheme.titleMedium),
+                Text(t.webSharePage.openLink(n: addresses.length), style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
                 Card(
                   color: Theme.of(context).colorScheme.secondaryContainer,
@@ -146,7 +164,7 @@ class _WebSendPageState extends State<WebSendPage> with Refena {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ...networkState.localIps.map((ip) {
+                        ...addresses.map((ip) {
                           final url = '${_encrypted ? 'https' : 'http'}://$ip:${serverState.port}';
                           final urlWithPin = switch (webSendState.pin) {
                             String() => '$url/?pin=${Uri.encodeQueryComponent(webSendState.pin!)}',

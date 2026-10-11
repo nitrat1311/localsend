@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/config/refena.dart';
 import 'package:localsend_app/config/theme.dart';
 import 'package:localsend_app/pages/home_page.dart';
@@ -78,25 +79,27 @@ Future<RefenaContainer> preInit(List<String> args) async {
     // Check if this app is already open and let it "show up".
     // If this is the case, then exit the current instance.
 
-    final client = createRhttpClient(const Duration(milliseconds: 100), persistenceService.getSecurityContext());
+    if (!linkOnlyMode) {
+      final client = createRhttpClient(const Duration(milliseconds: 100), persistenceService.getSecurityContext());
 
-    try {
-      await client.post(
-        ApiRoute.show.targetRaw(
-          '127.0.0.1',
-          persistenceService.getPort(),
-          persistenceService.isHttps(),
-          peerProtocolVersion,
-        ),
-        query: {
-          'token': persistenceService.getShowToken(),
-        },
-        body: HttpBody.json({
-          'args': args,
-        }),
-      );
-      exit(0); // Another instance does exist because no error is thrown
-    } catch (_) {}
+      try {
+        await client.post(
+          ApiRoute.show.targetRaw(
+            '127.0.0.1',
+            persistenceService.getPort(),
+            persistenceService.isHttps(),
+            peerProtocolVersion,
+          ),
+          query: {
+            'token': persistenceService.getShowToken(),
+          },
+          body: HttpBody.json({
+            'args': args,
+          }),
+        );
+        exit(0); // Another instance does exist because no error is thrown
+      } catch (_) {}
+    }
 
     // initialize tray AFTER i18n has been initialized
     try {
@@ -168,6 +171,7 @@ Future<RefenaContainer> preInit(List<String> args) async {
 
   await container.redux(parentIsolateProvider).dispatchAsync(IsolateSetupAction(
         uriContentStreamResolver: AndroidUriContentStreamResolver(),
+        discoveryEnabled: !linkOnlyMode,
       ));
 
   return container;
@@ -187,18 +191,20 @@ Future<void> postInit(BuildContext context, Ref ref, bool appStart) async {
     }
   }
 
-  try {
-    await ref.notifier(serverProvider).startServerFromSettings();
-  } catch (e) {
-    if (context.mounted) {
-      context.showSnackBar(e.toString());
+  if (!linkOnlyMode) {
+    try {
+      await ref.notifier(serverProvider).startServerFromSettings();
+    } catch (e) {
+      if (context.mounted) {
+        context.showSnackBar(e.toString());
+      }
     }
-  }
 
-  try {
-    ref.redux(nearbyDevicesProvider).dispatchAsync(StartMulticastListener()); // ignore: unawaited_futures
-  } catch (e) {
-    _logger.warning('Starting multicast listener failed', e);
+    try {
+      ref.redux(nearbyDevicesProvider).dispatchAsync(StartMulticastListener()); // ignore: unawaited_futures
+    } catch (e) {
+      _logger.warning('Starting multicast listener failed', e);
+    }
   }
 
   if (appStart) {

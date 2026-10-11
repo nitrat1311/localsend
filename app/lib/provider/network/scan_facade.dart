@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:common/util/sleep.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/pages/home_page.dart';
 import 'package:localsend_app/pages/home_page_controller.dart';
 import 'package:localsend_app/provider/favorites_provider.dart';
@@ -24,6 +25,8 @@ class StartSmartScan extends AsyncGlobalAction {
 
   @override
   Future<void> reduce() async {
+    if (linkOnlyMode) return;
+
     // Try performant Multicast/UDP method first
     ref.redux(nearbyDevicesProvider).dispatch(StartMulticastScan());
 
@@ -68,6 +71,8 @@ class StartLegacySubnetScan extends AsyncGlobalAction {
 
   @override
   Future<void> reduce() async {
+    if (linkOnlyMode) return;
+
     final settings = ref.read(settingsProvider);
     final port = settings.port;
     final https = settings.https;

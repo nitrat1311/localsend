@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:common/model/device.dart';
 import 'package:common/model/session_status.dart';
 import 'package:flutter/material.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/config/theme.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/send_mode.dart';
@@ -162,96 +163,111 @@ class SendTab extends StatelessWidget {
                 ),
               ),
             ],
-            Row(
-              children: [
-                const SizedBox(width: _horizontalPadding),
-                Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text(t.sendTab.nearbyDevices, style: Theme.of(context).textTheme.titleMedium),
-                  ),
+            if (linkOnlyMode) ...[
+              Padding(
+                padding: const EdgeInsets.all(_horizontalPadding),
+                child: FilledButton.icon(
+                  onPressed: () async => vm.onTapSendMode(context, SendMode.link),
+                  icon: const Icon(Icons.link),
+                  label: Text(t.sendTab.sendModes.link),
                 ),
-                const SizedBox(width: 10),
-                _ScanButton(
-                  ips: vm.localIps,
-                ),
-                Tooltip(
-                  message: t.sendTab.manualSending,
-                  child: CustomIconButton(
-                    onPressed: () async => vm.onTapAddress(context),
-                    child: const Icon(Icons.ads_click),
-                  ),
-                ),
-                Tooltip(
-                  message: t.dialogs.favoriteDialog.title,
-                  child: CustomIconButton(
-                    onPressed: () async => await vm.onTapFavorite(context),
-                    child: const Icon(Icons.favorite),
-                  ),
-                ),
-                _SendModeButton(
-                  onSelect: (mode) async => vm.onTapSendMode(context, mode),
-                ),
-              ],
-            ),
-            if (vm.nearbyDevices.isEmpty)
+              ),
               const Padding(
-                padding: EdgeInsets.only(bottom: 10, left: _horizontalPadding, right: _horizontalPadding),
-                child: Opacity(
-                  opacity: 0.3,
-                  child: DevicePlaceholderListTile(),
+                padding: EdgeInsets.symmetric(horizontal: _horizontalPadding),
+                child: Text('Link-only edition: connect both devices to the same Wi-Fi, then open the link or scan its QR code.'),
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  const SizedBox(width: _horizontalPadding),
+                  Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(t.sendTab.nearbyDevices, style: Theme.of(context).textTheme.titleMedium),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _ScanButton(
+                    ips: vm.localIps,
+                  ),
+                  Tooltip(
+                    message: t.sendTab.manualSending,
+                    child: CustomIconButton(
+                      onPressed: () async => vm.onTapAddress(context),
+                      child: const Icon(Icons.ads_click),
+                    ),
+                  ),
+                  Tooltip(
+                    message: t.dialogs.favoriteDialog.title,
+                    child: CustomIconButton(
+                      onPressed: () async => await vm.onTapFavorite(context),
+                      child: const Icon(Icons.favorite),
+                    ),
+                  ),
+                  _SendModeButton(
+                    onSelect: (mode) async => vm.onTapSendMode(context, mode),
+                  ),
+                ],
+              ),
+              if (vm.nearbyDevices.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 10, left: _horizontalPadding, right: _horizontalPadding),
+                  child: Opacity(
+                    opacity: 0.3,
+                    child: DevicePlaceholderListTile(),
+                  ),
+                ),
+              ...vm.nearbyDevices.map((device) {
+                final favoriteEntry = vm.favoriteDevices.findDevice(device);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10, left: _horizontalPadding, right: _horizontalPadding),
+                  child: Hero(
+                    tag: 'device-${device.ip}',
+                    child: vm.sendMode == SendMode.multiple
+                        ? _MultiSendDeviceListTile(
+                            device: device,
+                            isFavorite: favoriteEntry != null,
+                            nameOverride: favoriteEntry?.alias,
+                            vm: vm,
+                          )
+                        : DeviceListTile(
+                            device: device,
+                            isFavorite: favoriteEntry != null,
+                            nameOverride: favoriteEntry?.alias,
+                            onFavoriteTap: () async => await vm.onToggleFavorite(context, device),
+                            onTap: () async => await vm.onTapDevice(context, device),
+                          ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 10),
+              Center(
+                child: TextButton(
+                  onPressed: () async {
+                    await context.push(() => const TroubleshootPage());
+                  },
+                  child: Text(t.troubleshootPage.title),
                 ),
               ),
-            ...vm.nearbyDevices.map((device) {
-              final favoriteEntry = vm.favoriteDevices.findDevice(device);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10, left: _horizontalPadding, right: _horizontalPadding),
-                child: Hero(
-                  tag: 'device-${device.ip}',
-                  child: vm.sendMode == SendMode.multiple
-                      ? _MultiSendDeviceListTile(
-                          device: device,
-                          isFavorite: favoriteEntry != null,
-                          nameOverride: favoriteEntry?.alias,
-                          vm: vm,
-                        )
-                      : DeviceListTile(
-                          device: device,
-                          isFavorite: favoriteEntry != null,
-                          nameOverride: favoriteEntry?.alias,
-                          onFavoriteTap: () async => await vm.onToggleFavorite(context, device),
-                          onTap: () async => await vm.onTapDevice(context, device),
-                        ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
+                child: Consumer(
+                  builder: (context, ref) {
+                    final animations = ref.watch(animationProvider);
+                    return OpacitySlideshow(
+                      durationMillis: 6000,
+                      running: animations,
+                      children: [
+                        Text(t.sendTab.help, style: const TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+                        if (checkPlatformCanReceiveShareIntent())
+                          Text(t.sendTab.shareIntentInfo, style: const TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+                      ],
+                    );
+                  },
                 ),
-              );
-            }),
-            const SizedBox(height: 10),
-            Center(
-              child: TextButton(
-                onPressed: () async {
-                  await context.push(() => const TroubleshootPage());
-                },
-                child: Text(t.troubleshootPage.title),
               ),
-            ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
-              child: Consumer(
-                builder: (context, ref) {
-                  final animations = ref.watch(animationProvider);
-                  return OpacitySlideshow(
-                    durationMillis: 6000,
-                    running: animations,
-                    children: [
-                      Text(t.sendTab.help, style: const TextStyle(color: Colors.grey), textAlign: TextAlign.center),
-                      if (checkPlatformCanReceiveShareIntent())
-                        Text(t.sendTab.shareIntentInfo, style: const TextStyle(color: Colors.grey), textAlign: TextAlign.center),
-                    ],
-                  );
-                },
-              ),
-            ),
+            ],
             const SizedBox(height: 50),
           ],
         );
