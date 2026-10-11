@@ -88,6 +88,8 @@ class ServerService extends Notifier<ServerState?> {
     required int port,
     required bool https,
   }) async {
+    // Enforce this even for manual settings actions or accidental link routes.
+    if (outgoingOnlyMode) return null;
     if (state != null) {
       _logger.info('Server already running.');
       return null;

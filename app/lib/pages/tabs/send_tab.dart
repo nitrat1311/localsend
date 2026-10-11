@@ -9,6 +9,7 @@ import 'package:localsend_app/model/send_mode.dart';
 import 'package:localsend_app/pages/selected_files_page.dart';
 import 'package:localsend_app/pages/tabs/send_tab_vm.dart';
 import 'package:localsend_app/pages/troubleshoot_page.dart';
+import 'package:localsend_app/pages/wifi_send_page.dart';
 import 'package:localsend_app/provider/animation_provider.dart';
 import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
 import 'package:localsend_app/provider/network/scan_facade.dart';
@@ -163,7 +164,21 @@ class SendTab extends StatelessWidget {
                 ),
               ),
             ],
-            if (linkOnlyMode) ...[
+            if (outgoingOnlyMode) ...[
+              Padding(
+                padding: const EdgeInsets.all(_horizontalPadding),
+                child: FilledButton.icon(
+                  onPressed: vm.selectedFiles.isEmpty ? null : () async => context.push(() => WifiSendPage(List.unmodifiable(vm.selectedFiles))),
+                  icon: const Icon(Icons.phone_iphone),
+                  label: const Text('Send to iPhone'),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: _horizontalPadding),
+                child: Text(
+                    'Select files, then send to the LocalSend app on your iPhone. Keep Windows Firewall enabled; no administrator rights needed.'),
+              ),
+            ] else if (linkOnlyMode) ...[
               Padding(
                 padding: const EdgeInsets.all(_horizontalPadding),
                 child: FilledButton.icon(

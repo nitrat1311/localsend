@@ -38,3 +38,47 @@ String requireWifiAddress(List<String> addresses) {
   }
   return usable.first;
 }
+
+class WifiIpv4Interface {
+  final String address;
+  final int prefixLength;
+
+  const WifiIpv4Interface(this.address, this.prefixLength);
+
+  bool containsPeer(String peer) {
+    if (!isUsableWifiAddress(address) || !isUsableWifiAddress(peer) || peer == address || prefixLength < 1 || prefixLength > 32) {
+      return false;
+    }
+    int number(String value) => InternetAddress(value).rawAddress.fold(0, (n, byte) => (n << 8) | byte);
+    final mask = (0xffffffff << (32 - prefixLength)) & 0xffffffff;
+    final peerNumber = number(peer);
+    final network = number(address) & mask;
+    // Exclude network and broadcast addresses on ordinary LAN subnets.
+    return (peerNumber & mask) == network && (prefixLength >= 31 || (peerNumber != network && peerNumber != (network | (~mask & 0xffffffff))));
+  }
+}
+
+Future<List<WifiIpv4Interface>> getWindowsWifiInterfaces() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return [];
+  try {
+    final values = await wifiAddressChannel.invokeListMethod<dynamic>('getWifiIpv4Interfaces');
+    return [
+      for (final value in values ?? [])
+        if (value is Map && value['address'] is String && value['prefixLength'] is int)
+          WifiIpv4Interface(value['address'] as String, value['prefixLength'] as int),
+    ].where((value) => isUsableWifiAddress(value.address) && value.prefixLength >= 1 && value.prefixLength <= 32).toList();
+  } on PlatformException {
+    return [];
+  } on MissingPluginException {
+    return [];
+  }
+}
+
+String selectWifiAddressForPeer(List<WifiIpv4Interface> interfaces, String peer) {
+  for (final network in interfaces) {
+    if (network.containsPeer(peer)) return network.address;
+  }
+  throw StateError('The iPhone address is not on an active Wi-Fi subnet. Connect both devices to the same Wi-Fi and check its IP address.');
+}
+
+Future<String> resolveWifiAddressForPeer(String peer) async => selectWifiAddressForPeer(await getWindowsWifiInterfaces(), peer);

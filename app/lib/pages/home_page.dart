@@ -61,7 +61,9 @@ class _HomePageState extends State<HomePage> with Refena {
     super.initState();
 
     ensureRef((ref) async {
-      ref.redux(homePageControllerProvider).dispatch(ChangeTabAction(widget.initialTab));
+      ref
+          .redux(homePageControllerProvider)
+          .dispatch(ChangeTabAction(outgoingOnlyMode && widget.initialTab == HomeTab.receive ? HomeTab.send : widget.initialTab));
       await postInit(context, ref, widget.appStart);
     });
   }
@@ -70,6 +72,7 @@ class _HomePageState extends State<HomePage> with Refena {
   Widget build(BuildContext context) {
     Translations.of(context); // rebuild on locale change
     final vm = context.watch(homePageControllerProvider);
+    final tabs = outgoingOnlyMode ? [HomeTab.send, HomeTab.settings] : HomeTab.values;
 
     return DropTarget(
       onDragEntered: (_) {
@@ -102,8 +105,8 @@ class _HomePageState extends State<HomePage> with Refena {
               children: [
                 if (!sizingInformation.isMobile)
                   NavigationRail(
-                    selectedIndex: vm.currentTab.index,
-                    onDestinationSelected: (index) => vm.changeTab(HomeTab.values[index]),
+                    selectedIndex: tabs.indexOf(vm.currentTab).clamp(0, tabs.length - 1),
+                    onDestinationSelected: (index) => vm.changeTab(tabs[index]),
                     extended: sizingInformation.isDesktop,
                     backgroundColor: Theme.of(context).cardColorWithElevation,
                     leading: sizingInformation.isDesktop
@@ -111,15 +114,15 @@ class _HomePageState extends State<HomePage> with Refena {
                             children: [
                               SizedBox(height: 20),
                               Text(
-                                linkOnlyMode ? 'LocalSend Link-Only' : 'LocalSend',
-                                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                                linkOnlyMode ? customEditionName : 'LocalSend',
+                                style: TextStyle(fontSize: outgoingOnlyMode ? 24 : 32, fontWeight: FontWeight.bold),
                                 textAlign: TextAlign.center,
                               ),
                               SizedBox(height: 20),
                             ],
                           )
                         : null,
-                    destinations: HomeTab.values.map((tab) {
+                    destinations: tabs.map((tab) {
                       return NavigationRailDestination(
                         icon: Icon(tab.icon),
                         label: Text(tab.label),
@@ -135,7 +138,13 @@ class _HomePageState extends State<HomePage> with Refena {
                           controller: vm.controller,
                           physics: const NeverScrollableScrollPhysics(),
                           children: const [
-                            ReceiveTab(),
+                            outgoingOnlyMode
+                                ? Center(
+                                    child: Padding(
+                                        padding: EdgeInsets.all(24),
+                                        child:
+                                            Text('This edition sends files to the LocalSend receiver on your iPhone. Select the Send tab to begin.')))
+                                : ReceiveTab(),
                             SendTab(),
                             SettingsTab(),
                           ],
@@ -163,9 +172,9 @@ class _HomePageState extends State<HomePage> with Refena {
             ),
             bottomNavigationBar: sizingInformation.isMobile
                 ? NavigationBar(
-                    selectedIndex: vm.currentTab.index,
-                    onDestinationSelected: (index) => vm.changeTab(HomeTab.values[index]),
-                    destinations: HomeTab.values.map((tab) {
+                    selectedIndex: tabs.indexOf(vm.currentTab).clamp(0, tabs.length - 1),
+                    onDestinationSelected: (index) => vm.changeTab(tabs[index]),
+                    destinations: tabs.map((tab) {
                       return NavigationDestination(icon: Icon(tab.icon), label: tab.label);
                     }).toList(),
                   )

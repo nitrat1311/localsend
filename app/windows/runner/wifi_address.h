@@ -4,6 +4,6 @@
 #include <flutter/encodable_value.h>
 
 // Reads active IEEE 802.11 adapters without changing any network configuration.
-flutter::EncodableList GetWifiIpv4Addresses();
+flutter::EncodableList GetWifiIpv4Addresses(bool include_prefix = false);
 
 #endif  // RUNNER_WIFI_ADDRESS_H_

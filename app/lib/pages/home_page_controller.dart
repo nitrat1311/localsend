@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/pages/home_page.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 
@@ -22,8 +23,8 @@ class HomePageController extends ReduxNotifier<HomePageVm> {
   @override
   HomePageVm init() {
     return HomePageVm(
-      controller: PageController(),
-      currentTab: HomeTab.receive,
+      controller: PageController(initialPage: outgoingOnlyMode ? HomeTab.send.index : HomeTab.receive.index),
+      currentTab: outgoingOnlyMode ? HomeTab.send : HomeTab.receive,
       changeTab: (tab) => redux.dispatch(ChangeTabAction(tab)),
     );
   }

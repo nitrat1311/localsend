@@ -33,12 +33,14 @@ bool FlutterWindow::OnCreate() {
   wifi_channel_->SetMethodCallHandler(
       [](const flutter::MethodCall<flutter::EncodableValue>& call,
          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-        if (call.method_name() != "getWifiIpv4") {
+        if (call.method_name() != "getWifiIpv4" &&
+            call.method_name() != "getWifiIpv4Interfaces") {
           result->NotImplemented();
           return;
         }
         try {
-          result->Success(flutter::EncodableValue(GetWifiIpv4Addresses()));
+          result->Success(flutter::EncodableValue(
+              GetWifiIpv4Addresses(call.method_name() == "getWifiIpv4Interfaces")));
         } catch (const std::exception& error) {
           result->Error("wifi_unavailable", error.what());
         }
