@@ -4,8 +4,11 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/model/state/network_state.dart';
+import 'package:localsend_app/provider/network/server/server_provider.dart';
 import 'package:localsend_app/util/native/platform_check.dart';
+import 'package:localsend_app/util/native/wifi_address.dart';
 import 'package:logging/logging.dart';
 import 'package:network_info_plus/network_info_plus.dart' as plugin;
 import 'package:refena_flutter/refena_flutter.dart';
@@ -13,13 +16,20 @@ import 'package:refena_flutter/refena_flutter.dart';
 final _logger = Logger('NetworkInfo');
 
 final localIpProvider = ReduxProvider<LocalIpService, NetworkState>((ref) {
-  return LocalIpService();
+  return LocalIpService(onWifiAddressChanged: (addresses) async {
+    final server = ref.notifier(serverProvider);
+    if (server.boundAddress != null && !addresses.contains(server.boundAddress)) {
+      await server.stopServer();
+    }
+  });
 });
 
 StreamSubscription? _subscription;
 
 class LocalIpService extends ReduxNotifier<NetworkState> {
-  LocalIpService();
+  final Future<void> Function(List<String>) _onWifiAddressChanged;
+
+  LocalIpService({required Future<void> Function(List<String>) onWifiAddressChanged}) : _onWifiAddressChanged = onWifiAddressChanged;
 
   @override
   NetworkState init() {
@@ -66,14 +76,21 @@ class InitLocalIpAction extends ReduxAction<LocalIpService, NetworkState> {
 class _FetchLocalIpAction extends AsyncReduxAction<LocalIpService, NetworkState> {
   @override
   Future<NetworkState> reduce() async {
+    final addresses = await _getIp();
+    if (linkOnlyMode) {
+      await notifier._onWifiAddressChanged(addresses);
+    }
     return NetworkState(
-      localIps: await _getIp(),
+      localIps: addresses,
       initialized: true,
     );
   }
 }
 
 Future<List<String>> _getIp() async {
+  if (linkOnlyMode) {
+    return getWindowsWifiAddresses();
+  }
   final info = plugin.NetworkInfo();
   String? ip;
   try {

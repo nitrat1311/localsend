@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:common/isolate.dart';
 import 'package:common/model/device.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/model/persistence/favorite_device.dart';
 import 'package:localsend_app/model/state/nearby_devices_state.dart';
 import 'package:localsend_app/provider/favorites_provider.dart';
@@ -48,6 +49,8 @@ class NearbyDevicesService extends ReduxNotifier<NearbyDevicesState> {
 class StartMulticastListener extends AsyncReduxAction<NearbyDevicesService, NearbyDevicesState> {
   @override
   Future<NearbyDevicesState> reduce() async {
+    if (linkOnlyMode) return state;
+
     await for (final device in notifier._isolateController.state.multicastDiscovery!.receiveFromIsolate) {
       await dispatchAsync(RegisterDeviceAction(device));
       notifier._discoveryLogger.addLog('[DISCOVER/UDP] ${device.alias} (${device.ip}, model: ${device.deviceModel})');
@@ -78,6 +81,8 @@ class RegisterDeviceAction extends AsyncReduxAction<NearbyDevicesService, Nearby
 
   @override
   Future<NearbyDevicesState> reduce() async {
+    if (linkOnlyMode) return state;
+
     final favoriteDevice = notifier._favoriteService.state.firstWhereOrNull((e) => e.fingerprint == device.fingerprint);
     if (favoriteDevice != null && !favoriteDevice.customAlias) {
       // Update existing favorite with new alias
@@ -96,6 +101,7 @@ class RegisterDeviceAction extends AsyncReduxAction<NearbyDevicesService, Nearby
 class StartMulticastScan extends ReduxAction<NearbyDevicesService, NearbyDevicesState> {
   @override
   NearbyDevicesState reduce() {
+    if (linkOnlyMode) return state;
     external(notifier._isolateController).dispatch(IsolateSendMulticastAnnouncementAction());
     return state;
   }
@@ -116,6 +122,8 @@ class StartLegacyScan extends AsyncReduxAction<NearbyDevicesService, NearbyDevic
 
   @override
   Future<NearbyDevicesState> reduce() async {
+    if (linkOnlyMode) return state;
+
     if (state.runningIps.contains(localIp)) {
       // already running for the same localIp
       await Future.microtask(() {});
@@ -152,6 +160,8 @@ class StartFavoriteScan extends AsyncReduxAction<NearbyDevicesService, NearbyDev
 
   @override
   Future<NearbyDevicesState> reduce() async {
+    if (linkOnlyMode) return state;
+
     if (devices.isEmpty) {
       return state;
     }

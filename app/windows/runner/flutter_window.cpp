@@ -1,8 +1,10 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "wifi_address.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,11 +27,28 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  wifi_channel_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "org.localsend/wifi_address",
+      &flutter::StandardMethodCodec::GetInstance());
+  wifi_channel_->SetMethodCallHandler(
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name() != "getWifiIpv4") {
+          result->NotImplemented();
+          return;
+        }
+        try {
+          result->Success(flutter::EncodableValue(GetWifiIpv4Addresses()));
+        } catch (const std::exception& error) {
+          result->Error("wifi_unavailable", error.what());
+        }
+      });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   return true;
 }
 
 void FlutterWindow::OnDestroy() {
+  wifi_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

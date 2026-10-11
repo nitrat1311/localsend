@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:common/model/device.dart';
 import 'package:common/model/session_status.dart';
 import 'package:flutter/material.dart';
+import 'package:localsend_app/config/link_only.dart';
 import 'package:localsend_app/model/cross_file.dart';
 import 'package:localsend_app/model/persistence/favorite_device.dart';
 import 'package:localsend_app/model/send_mode.dart';
@@ -190,6 +191,7 @@ class SendTabInitAction extends AsyncGlobalAction {
 
   @override
   Future<void> reduce() async {
+    if (linkOnlyMode) return;
     final devices = ref.read(nearbyDevicesProvider).devices;
     if (devices.isEmpty) {
       await dispatchAsync(StartSmartScan(forceLegacy: false));

@@ -72,35 +72,45 @@ class IsolateSetupAction extends AsyncReduxAction<IsolateController, ParentIsola
   /// If provided, file paths starting with "content://" will be resolved using this resolver.
   final UriContentStreamResolver? uriContentStreamResolver;
 
+  /// Disable every discovery worker, including its startup announcement.
+  final bool discoveryEnabled;
+
   IsolateSetupAction({
     required this.uriContentStreamResolver,
+    this.discoveryEnabled = true,
   });
 
   @override
   Future<ParentIsolateState> reduce() async {
-    final httpScanDiscovery = await startIsolate<IsolateTaskStreamResult<Device>, SendToIsolateData<IsolateTask<HttpScanTask>>, InitialData>(
-      task: setupHttpScanDiscoveryIsolate,
-      param: InitialData(
-        syncState: state.syncState,
-        logLevel: Logger.root.level,
-      ),
-    );
+    final httpScanDiscovery = !discoveryEnabled
+        ? null
+        : await startIsolate<IsolateTaskStreamResult<Device>, SendToIsolateData<IsolateTask<HttpScanTask>>, InitialData>(
+            task: setupHttpScanDiscoveryIsolate,
+            param: InitialData(
+              syncState: state.syncState,
+              logLevel: Logger.root.level,
+            ),
+          );
 
-    final httpTargetDiscovery = await startIsolate<IsolateTaskResult<Device>, SendToIsolateData<IsolateTask<HttpTargetTask>>, InitialData>(
-      task: setupHttpTargetDiscoveryIsolate,
-      param: InitialData(
-        syncState: state.syncState,
-        logLevel: Logger.root.level,
-      ),
-    );
+    final httpTargetDiscovery = !discoveryEnabled
+        ? null
+        : await startIsolate<IsolateTaskResult<Device>, SendToIsolateData<IsolateTask<HttpTargetTask>>, InitialData>(
+            task: setupHttpTargetDiscoveryIsolate,
+            param: InitialData(
+              syncState: state.syncState,
+              logLevel: Logger.root.level,
+            ),
+          );
 
-    final multicastDiscovery = await startIsolate<Device, SendToIsolateData<MulticastAnnouncementTask>, InitialData>(
-      task: setupMulticastDiscoveryIsolate,
-      param: InitialData(
-        syncState: state.syncState,
-        logLevel: Logger.root.level,
-      ),
-    );
+    final multicastDiscovery = !discoveryEnabled
+        ? null
+        : await startIsolate<Device, SendToIsolateData<MulticastAnnouncementTask>, InitialData>(
+            task: setupMulticastDiscoveryIsolate,
+            param: InitialData(
+              syncState: state.syncState,
+              logLevel: Logger.root.level,
+            ),
+          );
 
     final httpUploadIsolates = List.generate(
       _uploadIsolateCount,
