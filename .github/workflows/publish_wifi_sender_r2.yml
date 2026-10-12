@@ -1,0 +1,47 @@
+name: Publish verified Wi-Fi Sender r2 download
+
+on:
+  push:
+    branches: [codex/publish-wifi-sender-r2]
+    paths: [.github/workflows/publish_wifi_sender_r2.yml]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: nitrat1311/localsend
+          run-id: 38156198769
+          name: LocalSend-1.16.1-WiFiSender-r2-Windows-x64
+          path: downloads
+      - name: Verify portable ZIP and write checksum
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          path = Path('downloads/LocalSend-1.16.1-WiFiSender-r2-Windows-x64.zip')
+          expected = '8d6fd537b1cf79cd32dfcbf739e4b8ede38718325eec75b9c340f8eba1b22758'
+          assert hashlib.sha256(path.read_bytes()).hexdigest() == expected
+          with ZipFile(path) as archive:
+              assert archive.testzip() is None
+              assert 'localsend_app.exe' in archive.namelist()
+          path.with_suffix('.zip.sha256').write_text(f'{expected}  {path.name}\n')
+          print('Verified portable ZIP SHA-256 and CRC.')
+          PY
+      - name: Upload verified files and publish test release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload wifi-sender-r2 downloads/LocalSend-1.16.1-WiFiSender-r2-Windows-x64.zip downloads/LocalSend-1.16.1-WiFiSender-r2-Windows-x64.zip.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit wifi-sender-r2 --draft=false --prerelease --latest=false --repo "$GITHUB_REPOSITORY"
